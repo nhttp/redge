@@ -1,0 +1,15 @@
+{
+  "tasks": {
+    "dev": "deno run -A --watch app.tsx --no-wasm",
+    "start": "deno run -A app.tsx --no-wasm"
+  },
+  "importMap": "./_core/import_map.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "lib": [
+      "deno.window",
+      "dom"
+    ]
+  }
+}

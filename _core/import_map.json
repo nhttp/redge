@@ -1,0 +1,10 @@
+{
+  "imports": {
+    "nhttp": "https://deno.land/x/nhttp@1.2.19/mod.ts",
+    "nhttp/": "https://deno.land/x/nhttp@1.2.19/lib/",
+    "react": "https://esm.sh/react@18.0.0",
+    "react/": "https://esm.sh/react@18.0.0/",
+    "react-dom/": "https://esm.sh/react-dom@18.0.0/",
+    "client": "./client.ts"
+  }
+}
