@@ -16,6 +16,12 @@ export const PATCH = shim.patch.bind(shim);
 export const DELETE = shim.delete.bind(shim);
 export const ANY = shim.any.bind(shim);
 
+export class Api extends Router {
+  constructor(base?: string) {
+    super({ base: base ?? "/api" });
+  }
+}
+
 // deno-lint-ignore no-explicit-any
 type TAny = any;
 
@@ -144,7 +150,6 @@ export class Redge extends NHttp {
       ...entry,
       client: "redge/client",
       hydrate: "react-dom/client",
-      runtime: "react/jsx-runtime",
       react: "react",
     };
     const res = await esbuild.build({

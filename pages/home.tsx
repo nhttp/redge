@@ -2,6 +2,7 @@ import Helmet from "redge/helmet";
 import { GET } from "redge";
 import Counter from "../components/counter.tsx";
 import Clock from "../components/clock.tsx";
+import Title from "../components/title.tsx";
 
 export default GET("/", (rev) => {
   return (
@@ -14,10 +15,7 @@ export default GET("/", (rev) => {
         />
       </Helmet>
       <div style={{ textAlign: "center" }}>
-        <h1>Redge</h1>
-        <p>A minimal React JIT-rendering on the Edge.</p>
-        <p>Hydrate your Components only when you need.</p>
-        <p>(This title run on server-side only).</p>
+        <Title />
         <hr />
         <Counter init={10} />
         <hr />
