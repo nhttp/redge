@@ -1,10 +1,12 @@
-import { hydrate, IS_CLIENT } from "client";
 import { useEffect, useState } from "react";
+import { hydrate, IS_CLIENT } from "redge/client";
 
 interface TCounter {
   init: number;
 }
-const self = IS_CLIENT ? import.meta.url : void 0;
+
+const meta_url = import.meta.url;
+
 const Counter = ({ init }: TCounter) => {
   const [count, setCount] = useState(init);
 
@@ -16,7 +18,8 @@ const Counter = ({ init }: TCounter) => {
     <div>
       <h1>Counter</h1>
       <p>
-        This counter hydrate from script {self && <a href={self}>{self}</a>}
+        This counter hydrate from script{" "}
+        {IS_CLIENT && <a href={meta_url}>{meta_url}</a>}
       </p>
       <button onClick={() => setCount((p) => p - 1)}>
         - Decrement
@@ -29,4 +32,4 @@ const Counter = ({ init }: TCounter) => {
   );
 };
 
-export default hydrate(Counter, import.meta.url);
+export default hydrate(Counter, meta_url);

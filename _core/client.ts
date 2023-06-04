@@ -1,16 +1,28 @@
 import { createElement, type FC } from "react";
 import { hydrateRoot } from "react-dom/client";
+
+declare global {
+  // deno-lint-ignore no-var
+  var __client: {
+    [k: string]: { path: string; meta_url: string };
+  };
+  // deno-lint-ignore no-var
+  var __props: TAny;
+}
 // deno-lint-ignore no-explicit-any
 type TAny = any;
 export const IS_CLIENT = typeof document !== "undefined";
 const tt = Date.now();
 type FunctionComp<T> = FC<T>;
 let count = 0;
+
 export function hydrate<T>(
   fn: FunctionComp<T>,
   meta_url: string,
 ): FunctionComp<T> {
   if (IS_CLIENT) {
+    if (!meta_url) return fn;
+    if (meta_url.includes("/chunk-")) return fn;
     const path = meta_url.slice(meta_url.indexOf("/", 8) + 1);
     const id = path.slice(0, path.indexOf("."));
     const target = document.getElementById(id) as Element;
@@ -21,20 +33,20 @@ export function hydrate<T>(
     );
     return hydrateRoot(target, elem, {
       onRecoverableError() {/* noop */},
-    }) as unknown as FunctionComp<T>;
+    }) as TAny;
   }
   count++;
   const hash = `comp-${count}`;
-  const path = `/${hash}.${tt}.js`;
-  const elem = (props: TAny) => {
+  const path = `/${hash}.${tt}`;
+  globalThis.__client ??= {};
+  globalThis.__props ??= {};
+  globalThis.__client[hash] = { path, meta_url };
+  return (props: TAny) => {
+    globalThis.__props[hash] = props;
     return createElement("div", { id: hash }, [
       createElement(fn as FC, props),
     ]);
   };
-  elem.meta_url = meta_url;
-  elem.path = path;
-  elem.hash = hash;
-  return elem;
 }
 
 export default hydrate;
