@@ -81,21 +81,20 @@ const setHeader = (rev: RequestEvent) => {
   );
 };
 export class Redge extends NHttp {
-  #is_cache = true;
   #entry: Record<string, TAny> = {};
   #cache: Record<string, TAny> = {};
   constructor(opts: TApp = {}) {
     super(opts);
     options.onRenderElement = (elem) => {
-      const src = this.#bundle(elem);
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
+      const src = this.#bundle(elem);
       const last = Helmet.writeBody?.() ?? [];
       Helmet.writeBody = () => [
         ...src,
         ...last,
       ];
-      if (!this.#is_cache) {
+      if (!isEmptyObj(this.#entry)) {
         return this.#build().then((res) => {
           const files = res.outputFiles;
           files.forEach(({ path, contents }) => {
@@ -108,7 +107,7 @@ export class Redge extends NHttp {
               });
             }
           });
-          this.#is_cache = true;
+          this.#entry = {};
           return body;
         });
       }
@@ -144,11 +143,11 @@ export class Redge extends NHttp {
           }</script>`,
         );
       }
-      src.push(`<script type="module" src="${fn.path}.js" async></script>`);
-      const key = fn.path.substring(1);
-      if (!this.#entry[key]) {
+      const path = `${fn.path}.js`;
+      src.push(`<script type="module" src="${path}" async></script>`);
+      if (!this.#cache[path]) {
+        const key = fn.path.substring(1);
         this.#entry[key] = fn.meta_url;
-        this.#is_cache = false;
       }
     } else {
       const arr: JSX.Element[] = this.#findNode(elem);
