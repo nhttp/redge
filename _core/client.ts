@@ -6,7 +6,6 @@ type TAny = any;
 export const IS_CLIENT = typeof document !== "undefined";
 const tt = Date.now();
 type FunctionComp<T> = FC<T>;
-let count = 0;
 
 export function hydrate<T>(
   fn: FunctionComp<T>,
@@ -27,7 +26,7 @@ export function hydrate<T>(
       onRecoverableError() {/* noop */},
     }) as TAny;
   }
-  const hash = `${(btoa(meta_url.slice(-16, -4))).toLowerCase()}${count++}`;
+  const hash = `${(btoa(meta_url.slice(-16, -4))).toLowerCase()}`;
   const path = `/${hash}.${tt}`;
   const mod = (props: TAny) => {
     return createElement("div", { id: hash }, [
