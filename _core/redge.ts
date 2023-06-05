@@ -135,7 +135,6 @@ export class Redge extends NHttp {
     const entryPoints = {
       ...entry,
       client: "redge/client",
-      hydrate: "react-dom/client",
       react: "react",
     };
     const res = await esbuild.build({
