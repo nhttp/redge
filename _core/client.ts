@@ -1,12 +1,6 @@
 import { createElement, type FC } from "react";
 import { hydrateRoot } from "react-dom/client";
 
-declare global {
-  // deno-lint-ignore no-var
-  var __client: {
-    [k: string]: { path: string; meta_url: string; props?: TAny };
-  };
-}
 // deno-lint-ignore no-explicit-any
 type TAny = any;
 export const IS_CLIENT = typeof document !== "undefined";
@@ -35,16 +29,15 @@ export function hydrate<T>(
   }
   const hash = `${(btoa(meta_url.slice(-16, -4))).toLowerCase()}${count++}`;
   const path = `/${hash}.${tt}`;
-  globalThis.__client ??= {};
-  globalThis.__client[hash] = { path, meta_url };
-  return (props: TAny) => {
-    if (globalThis.__client[hash]) {
-      globalThis.__client[hash].props = props;
-    }
+  const mod = (props: TAny) => {
     return createElement("div", { id: hash }, [
       createElement(fn as FC, props),
     ]);
   };
+  mod.meta_url = meta_url;
+  mod.path = path;
+  mod.hash = hash;
+  return mod;
 }
 
 export default hydrate;

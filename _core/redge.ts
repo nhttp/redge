@@ -81,26 +81,34 @@ const setHeader = (rev: RequestEvent) => {
   );
 };
 export class Redge extends NHttp {
+  #is_cache = true;
+  #entry: Record<string, TAny> = {};
   #cache: Record<string, TAny> = {};
   constructor(opts: TApp = {}) {
     super(opts);
     options.onRenderElement = (elem) => {
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
-      const { src, isBundle } = this.#getClient();
+      const src = this.#bundle(elem);
       const last = Helmet.writeBody?.() ?? [];
       Helmet.writeBody = () => [
         ...src,
         ...last,
       ];
-      if (!isBundle) {
-        return this.#bundle(this.#cache).then((files) => {
+      if (!this.#is_cache) {
+        return this.#build(this.#entry).then((res) => {
+          const files = res.outputFiles;
           files.forEach(({ path, contents }) => {
-            this.get(toPathname(path), (rev) => {
-              setHeader(rev);
-              return contents;
-            });
+            path = toPathname(path);
+            if (!this.#cache[path]) {
+              this.#cache[path] = true;
+              this.get(path, (rev) => {
+                setHeader(rev);
+                return contents;
+              });
+            }
           });
+          this.#is_cache = true;
           return body;
         });
       }
@@ -108,30 +116,70 @@ export class Redge extends NHttp {
     };
     this.engine(renderToHtml);
   }
-  #getClient = () => {
-    const client = globalThis.__client;
-    const src: string[] = [];
-    let isBundle = true;
-    for (const k in client) {
-      const { path, meta_url, props } = client[k];
-      const key = path.substring(1);
-      if (!this.#cache[key]) {
-        this.#cache[key] = meta_url;
-        isBundle = false;
+  #findNode = (elem: JSX.Element) => {
+    let arr = [] as TAny;
+    let childs = elem.props?.children ?? [];
+    if (!childs.pop) childs = [childs];
+    for (let i = 0; i < childs.length; i++) {
+      const child = childs[i];
+      if (child?.props?.children) {
+        arr = arr.concat(this.#findNode(child));
+      } else if (child.type?.meta_url) {
+        arr.push(child);
       }
+    }
+    return arr;
+  };
+  #bundle = (elem: JSX.Element) => {
+    const fn = elem.type as TAny;
+    const main = fn?.meta_url;
+    let src: TAny[] = [];
+    if (main) {
+      const props = elem.props;
       if (!isEmptyObj(props)) {
-        if (props.children) props.children = void 0;
+        if (props?.children) props.children = void 0;
         src.push(
-          `<script id="p-${k}" type="application/json">${
+          `<script id="p-${fn.hash}" type="application/json">${
             JSON.stringify(props)
           }</script>`,
         );
       }
-      src.push(`<script type="module" src="${path}.js" async></script>`);
+      src.push(`<script type="module" src="${fn.path}.js" async></script>`);
+      const key = fn.path.substring(1);
+      if (!this.#entry[key]) {
+        this.#entry[key] = fn.meta_url;
+        this.#is_cache = false;
+      }
+    } else {
+      const arr: JSX.Element[] = this.#findNode(elem);
+      arr.forEach((elem) => {
+        src = src.concat(this.#bundle(elem));
+      });
     }
-    return { src, isBundle };
+    return src;
+    // const client = globalThis.__client;
+    // const src: string[] = [];
+    // let isBundle = true;
+    // for (const k in client) {
+    //   const { path, meta_url, props } = client[k];
+    //   const key = path.substring(1);
+    //   if (!this.#cache[key]) {
+    //     this.#cache[key] = meta_url;
+    //     isBundle = false;
+    //   }
+    //   if (!isEmptyObj(props)) {
+    //     if (props?.children) props.children = void 0;
+    //     src.push(
+    //       `<script id="p-${k}" type="application/json">${
+    //         JSON.stringify(props)
+    //       }</script>`,
+    //     );
+    //   }
+    //   src.push(`<script type="module" src="${path}.js" async></script>`);
+    // }
+    // return { src, isBundle };
   };
-  #bundle = async (entry: Record<string, string>) => {
+  #build = async (entry: Record<string, string>) => {
     const entryPoints = {
       ...entry,
       client: "redge/client",
@@ -142,7 +190,7 @@ export class Redge extends NHttp {
       entryPoints,
       write: false,
     });
-    return res.outputFiles;
+    return res;
   };
 }
 
