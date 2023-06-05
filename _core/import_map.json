@@ -1,12 +1,12 @@
 {
   "imports": {
-    "nhttp": "https://deno.land/x/nhttp@1.2.19/mod.ts",
-    "nhttp/render": "https://deno.land/x/nhttp@1.2.19/lib/jsx/render.ts",
+    "nhttp": "https://deno.land/x/nhttp@1.2.20/mod.ts",
+    "nhttp/render": "https://deno.land/x/nhttp@1.2.20/lib/jsx/render.ts",
     "react": "https://esm.sh/react@18.0.0",
     "react/": "https://esm.sh/react@18.0.0/",
     "react-dom/": "https://esm.sh/react-dom@18.0.0/",
     "redge/client": "./client.ts",
-    "redge/helmet": "https://deno.land/x/nhttp@1.2.19/lib/jsx/helmet.ts",
+    "redge/helmet": "https://deno.land/x/nhttp@1.2.20/lib/jsx/helmet.ts",
     "redge": "./redge.ts"
   }
 }

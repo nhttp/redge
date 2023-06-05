@@ -14,10 +14,13 @@ const Clock = () => {
   return (
     <>
       <h1>Clock</h1>
-      <p>
-        This clock hydrate from script{" "}
-        {IS_CLIENT && <a href={meta_url}>{meta_url}</a>}
-      </p>
+      {IS_CLIENT
+        ? (
+          <p>
+            This clock hydrate from script <a href={meta_url}>{meta_url}</a>
+          </p>
+        )
+        : <p>Loading assets...</p>}
       <h1>
         {date.toLocaleTimeString()}
       </h1>

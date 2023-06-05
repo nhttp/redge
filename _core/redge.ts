@@ -25,8 +25,6 @@ export class Api extends Router {
 // deno-lint-ignore no-explicit-any
 type TAny = any;
 
-const REDGE_HYDRATE = "__REDGE_HYDRATE__";
-
 class Esbuild {
   #isDeploy = !Deno.args.includes("--no-wasm");
   config: esbuildOri.BuildOptions = {
@@ -75,75 +73,63 @@ function isEmptyObj(props: TAny) {
 }
 
 const toPathname = (path: string) => path.slice(path.lastIndexOf("/"));
-
+const setHeader = (rev: RequestEvent) => {
+  rev.response.type("js");
+  rev.response.setHeader(
+    "cache-control",
+    "public, max-age=31536000, immutable",
+  );
+};
 export class Redge extends NHttp {
-  #src: string[] = [];
+  #cache: Record<string, TAny> = {};
   constructor(opts: TApp = {}) {
     super(opts);
-    const setHeader = (rev: RequestEvent) => {
-      rev.response.type("js");
-      rev.response.setHeader(
-        "cache-control",
-        "public, max-age=31536000, immutable",
-      );
-    };
     options.onRenderElement = (elem) => {
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
-      const props = this.#genProps();
+      const { src, isBundle } = this.#getClient();
       const last = Helmet.writeBody?.() ?? [];
       Helmet.writeBody = () => [
-        ...props,
-        ...this.#src,
+        ...src,
         ...last,
       ];
+      if (!isBundle) {
+        return this.#bundle(this.#cache).then((files) => {
+          files.forEach(({ path, contents }) => {
+            this.get(toPathname(path), (rev) => {
+              setHeader(rev);
+              return contents;
+            });
+          });
+          return body;
+        });
+      }
       return body;
     };
     this.engine(renderToHtml);
-    const ori = this.listen.bind(this);
-    this.listen = async (opts, cb) => {
-      const client = globalThis.__client;
-      const entry: Record<string, string> = {};
-      for (const k in client) {
-        const { path, meta_url } = client[k];
-        entry[REDGE_HYDRATE + path.substring(1)] = meta_url;
-        this.#src.push(
-          `<script type="module" src="${path}.js" async></script>`,
-        );
-      }
-      const files = await this.#bundle(entry);
-      files.forEach(({ path, contents }) => {
-        path = toPathname(path);
-        if (path.includes(REDGE_HYDRATE)) {
-          const route = path.substring(REDGE_HYDRATE.length + 1);
-          this.get(`/${route}`, (rev) => {
-            setHeader(rev);
-            return contents;
-          });
-        } else {
-          this.get(path, (rev) => {
-            setHeader(rev);
-            return contents;
-          });
-        }
-      });
-      return await ori(opts, cb);
-    };
   }
-  #genProps = () => {
-    const props = globalThis.__props;
-    const arr: string[] = [];
-    for (const k in props) {
-      if (!isEmptyObj(props[k])) {
-        if (props[k].children) props[k].children = void 0;
-        arr.push(
+  #getClient = () => {
+    const client = globalThis.__client;
+    const src: string[] = [];
+    let isBundle = true;
+    for (const k in client) {
+      const { path, meta_url, props } = client[k];
+      const key = path.substring(1);
+      if (!this.#cache[key]) {
+        this.#cache[key] = meta_url;
+        isBundle = false;
+      }
+      if (!isEmptyObj(props)) {
+        if (props.children) props.children = void 0;
+        src.push(
           `<script id="p-${k}" type="application/json">${
-            JSON.stringify(props[k])
+            JSON.stringify(props)
           }</script>`,
         );
       }
+      src.push(`<script type="module" src="${path}.js" async></script>`);
     }
-    return arr;
+    return { src, isBundle };
   };
   #bundle = async (entry: Record<string, string>) => {
     const entryPoints = {

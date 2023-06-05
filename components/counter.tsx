@@ -17,15 +17,18 @@ const Counter = ({ init }: TCounter) => {
   return (
     <div>
       <h1>Counter</h1>
-      <p>
-        This counter hydrate from script{" "}
-        {IS_CLIENT && <a href={meta_url}>{meta_url}</a>}
-      </p>
-      <button onClick={() => setCount((p) => p - 1)}>
+      {IS_CLIENT
+        ? (
+          <p>
+            This counter hydrate from script <a href={meta_url}>{meta_url}</a>
+          </p>
+        )
+        : <p>Loading assets...</p>}
+      <button onClick={() => setCount((p) => p - 1)} disabled={!IS_CLIENT}>
         - Decrement
       </button>
       <span style={{ margin: 20, fontSize: 20 }}>{count}</span>
-      <button onClick={() => setCount((p) => p + 1)}>
+      <button onClick={() => setCount((p) => p + 1)} disabled={!IS_CLIENT}>
         Increment +
       </button>
     </div>

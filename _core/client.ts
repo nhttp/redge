@@ -4,10 +4,8 @@ import { hydrateRoot } from "react-dom/client";
 declare global {
   // deno-lint-ignore no-var
   var __client: {
-    [k: string]: { path: string; meta_url: string };
+    [k: string]: { path: string; meta_url: string; props?: TAny };
   };
-  // deno-lint-ignore no-var
-  var __props: TAny;
 }
 // deno-lint-ignore no-explicit-any
 type TAny = any;
@@ -35,14 +33,14 @@ export function hydrate<T>(
       onRecoverableError() {/* noop */},
     }) as TAny;
   }
-  count++;
-  const hash = `comp-${count}`;
+  const hash = `${(btoa(meta_url.slice(-16, -4))).toLowerCase()}${count++}`;
   const path = `/${hash}.${tt}`;
   globalThis.__client ??= {};
-  globalThis.__props ??= {};
   globalThis.__client[hash] = { path, meta_url };
   return (props: TAny) => {
-    globalThis.__props[hash] = props;
+    if (globalThis.__client[hash]) {
+      globalThis.__client[hash].props = props;
+    }
     return createElement("div", { id: hash }, [
       createElement(fn as FC, props),
     ]);
