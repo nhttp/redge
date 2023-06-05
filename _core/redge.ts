@@ -87,16 +87,16 @@ export class Redge extends NHttp {
   constructor(opts: TApp = {}) {
     super(opts);
     options.onRenderElement = (elem) => {
+      const src = this.#bundle(elem);
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
-      const src = this.#bundle(elem);
       const last = Helmet.writeBody?.() ?? [];
       Helmet.writeBody = () => [
         ...src,
         ...last,
       ];
       if (!this.#is_cache) {
-        return this.#build(this.#entry).then((res) => {
+        return this.#build().then((res) => {
           const files = res.outputFiles;
           files.forEach(({ path, contents }) => {
             path = toPathname(path);
@@ -157,31 +157,10 @@ export class Redge extends NHttp {
       });
     }
     return src;
-    // const client = globalThis.__client;
-    // const src: string[] = [];
-    // let isBundle = true;
-    // for (const k in client) {
-    //   const { path, meta_url, props } = client[k];
-    //   const key = path.substring(1);
-    //   if (!this.#cache[key]) {
-    //     this.#cache[key] = meta_url;
-    //     isBundle = false;
-    //   }
-    //   if (!isEmptyObj(props)) {
-    //     if (props?.children) props.children = void 0;
-    //     src.push(
-    //       `<script id="p-${k}" type="application/json">${
-    //         JSON.stringify(props)
-    //       }</script>`,
-    //     );
-    //   }
-    //   src.push(`<script type="module" src="${path}.js" async></script>`);
-    // }
-    // return { src, isBundle };
   };
-  #build = async (entry: Record<string, string>) => {
+  #build = async () => {
     const entryPoints = {
-      ...entry,
+      ...this.#entry,
       client: "redge/client",
       react: "react",
     };
