@@ -110,7 +110,7 @@ export class Redge extends NHttp {
           const path = `/${k}.js`;
           this.get(path, (rev) => {
             setHeader(rev);
-            return awaiter(path);
+            return this.#cache.get(path) ?? awaiter(path);
           });
         }
         this.#bundle();
