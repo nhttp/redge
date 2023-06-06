@@ -94,7 +94,7 @@ export class Redge extends NHttp {
           t++;
         }
         return this.#cache.get(path);
-      })(0, 300);
+      })(0, 30);
     };
     options.onRenderElement = (elem) => {
       Helmet.render = renderToString;
@@ -106,13 +106,6 @@ export class Redge extends NHttp {
         ...last,
       ];
       if (!isEmptyObj(this.#entry)) {
-        for (const k in this.#entry) {
-          const path = `/${k}.js`;
-          this.get(path, (rev) => {
-            setHeader(rev);
-            return this.#cache.get(path) ?? awaiter(path);
-          });
-        }
         this.#bundle().then((res) => {
           const files = res.outputFiles;
           files.forEach(({ path, contents }) => {
@@ -128,6 +121,14 @@ export class Redge extends NHttp {
             }
           });
         });
+        for (const k in this.#entry) {
+          const path = `/${k}.js`;
+          this.get(path, (rev) => {
+            setHeader(rev);
+            return this.#cache.get(path) ?? awaiter(path);
+          });
+        }
+        this.#entry = {};
       }
       return body;
     };
@@ -181,7 +182,6 @@ export class Redge extends NHttp {
       client: "redge/client",
       react: "react",
     };
-    this.#entry = {};
     return esbuild.build({
       ...config,
       entryPoints,
