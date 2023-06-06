@@ -25,8 +25,8 @@ export class Api extends Router {
 // deno-lint-ignore no-explicit-any
 type TAny = any;
 
+const isDeploy = !Deno.args.includes("--no-wasm");
 class Esbuild {
-  #isDeploy = !Deno.args.includes("--no-wasm");
   config: esbuildOri.BuildOptions = {
     absWorkingDir: Deno.cwd(),
     format: "esm",
@@ -51,7 +51,7 @@ class Esbuild {
   };
 
   async getEsbuild() {
-    if (this.#isDeploy) {
+    if (isDeploy) {
       const wasmModule = await WebAssembly.compileStreaming(
         fetch("https://unpkg.com/esbuild-wasm@0.17.19/esbuild.wasm"),
       );
@@ -80,36 +80,40 @@ const setHeader = (rev: RequestEvent) => {
     "public, max-age=31536000, immutable",
   );
 };
+const sleep = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 export class Redge extends NHttp {
   #entry: Record<string, TAny> = {};
-  #cache: Record<string, TAny> = {};
+  #cache = new Map();
   constructor(opts: TApp = {}) {
     super(opts);
+    const awaiter = (path: string) => {
+      return (async (t, d) => {
+        while (!this.#cache.has(path)) {
+          await sleep(t);
+          if (t === d) break;
+          t++;
+        }
+        return this.#cache.get(path);
+      })(0, 300);
+    };
     options.onRenderElement = (elem) => {
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
-      const src = this.#bundle(elem);
+      const src = this.#getSource(elem);
       const last = Helmet.writeBody?.() ?? [];
       Helmet.writeBody = () => [
         ...src,
         ...last,
       ];
       if (!isEmptyObj(this.#entry)) {
-        return this.#build().then((res) => {
-          const files = res.outputFiles;
-          files.forEach(({ path, contents }) => {
-            path = toPathname(path);
-            if (!this.#cache[path]) {
-              this.#cache[path] = true;
-              this.get(path, (rev) => {
-                setHeader(rev);
-                return contents;
-              });
-            }
+        for (const k in this.#entry) {
+          const path = `/${k}.js`;
+          this.get(path, (rev) => {
+            setHeader(rev);
+            return awaiter(path);
           });
-          this.#entry = {};
-          return body;
-        });
+        }
+        this.#bundle();
       }
       return body;
     };
@@ -129,7 +133,7 @@ export class Redge extends NHttp {
     }
     return arr;
   };
-  #bundle = (elem: JSX.Element) => {
+  #getSource = (elem: JSX.Element) => {
     const fn = elem.type as TAny;
     const main = fn?.meta_url;
     let src: TAny[] = [];
@@ -145,30 +149,46 @@ export class Redge extends NHttp {
       }
       const path = `${fn.path}.js`;
       src.push(`<script type="module" src="${path}" async></script>`);
-      if (!this.#cache[path]) {
+      if (!this.#cache.has(path)) {
         const key = fn.path.substring(1);
         this.#entry[key] = fn.meta_url;
       }
     } else {
       const arr: JSX.Element[] = this.#findNode(elem);
       arr.forEach((elem) => {
-        src = src.concat(this.#bundle(elem));
+        src = src.concat(this.#getSource(elem));
       });
     }
     return src;
   };
-  #build = async () => {
+  #bundle = () => {
     const entryPoints = {
       ...this.#entry,
       client: "redge/client",
       react: "react",
     };
-    const res = await esbuild.build({
+    esbuild.build({
       ...config,
       entryPoints,
       write: false,
+    }).then((res) => {
+      const files = res.outputFiles;
+      files.forEach(({ path, contents }) => {
+        path = toPathname(path);
+        if (!this.#cache.has(path)) {
+          this.#cache.set(path, contents);
+          if (path.startsWith("/chunk-")) {
+            this.get(path, (rev) => {
+              setHeader(rev);
+              return contents;
+            });
+          }
+        }
+      });
+      this.#entry = {};
+    }).finally(() => {
+      if (!isDeploy) esbuild.stop();
     });
-    return res;
   };
 }
 
