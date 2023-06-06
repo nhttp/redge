@@ -1,5 +1,5 @@
 import { createElement, type FC } from "react";
-import { hydrateRoot } from "react-dom/client";
+import { createRoot } from "react-dom/client";
 
 // deno-lint-ignore no-explicit-any
 type TAny = any;
@@ -18,13 +18,10 @@ export function hydrate<T>(
     const id = path.slice(0, path.indexOf("."));
     const target = document.getElementById(id) as Element;
     const props = document.getElementById(`p-${id}`);
-    const elem = createElement(
+    return createRoot(target).render(createElement(
       fn as FC,
       props ? JSON.parse(props.textContent || "{}") : {},
-    );
-    return hydrateRoot(target, elem, {
-      onRecoverableError() {/* noop */},
-    }) as TAny;
+    )) as TAny;
   }
   const hash = `${(btoa(meta_url.slice(-16, -4))).toLowerCase()}`;
   const path = `/${hash}.${tt}`;
