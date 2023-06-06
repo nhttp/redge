@@ -113,7 +113,21 @@ export class Redge extends NHttp {
             return this.#cache.get(path) ?? awaiter(path);
           });
         }
-        this.#bundle();
+        this.#bundle().then((res) => {
+          const files = res.outputFiles;
+          files.forEach(({ path, contents }) => {
+            path = toPathname(path);
+            if (!this.#cache.has(path)) {
+              this.#cache.set(path, contents);
+              if (path.startsWith("/chunk-")) {
+                this.get(path, (rev) => {
+                  setHeader(rev);
+                  return contents;
+                });
+              }
+            }
+          });
+        });
       }
       return body;
     };
@@ -168,26 +182,10 @@ export class Redge extends NHttp {
       react: "react",
     };
     this.#entry = {};
-    esbuild.build({
+    return esbuild.build({
       ...config,
       entryPoints,
       write: false,
-    }).then((res) => {
-      const files = res.outputFiles;
-      files.forEach(({ path, contents }) => {
-        path = toPathname(path);
-        if (!this.#cache.has(path)) {
-          this.#cache.set(path, contents);
-          if (path.startsWith("/chunk-")) {
-            this.get(path, (rev) => {
-              setHeader(rev);
-              return contents;
-            });
-          }
-        }
-      });
-    }).catch(console.error).finally(() => {
-      if (!isDeploy) esbuild.stop();
     });
   };
 }
