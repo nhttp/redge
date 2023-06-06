@@ -1,12 +1,10 @@
 import redge from "redge";
 import home from "./pages/home.tsx";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
 const app = redge();
 
 // register pages here.
 app.use([home]);
 
-app.listen(8080, (err, info) => {
-  if (err) throw err;
-  console.log(`> Running on port ${info.port}`);
-});
+serve(app.handle, { port: 8080 });
