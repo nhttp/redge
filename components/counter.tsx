@@ -9,10 +9,15 @@ const meta_url = import.meta.url;
 
 const Counter = ({ init }: TCounter) => {
   const [count, setCount] = useState(init);
+  const [disable, setDisable] = useState(true);
 
   useEffect(() => {
     console.log(count);
   }, [count]);
+
+  useEffect(() => {
+    setDisable(false);
+  }, []);
 
   return (
     <div>
@@ -24,11 +29,11 @@ const Counter = ({ init }: TCounter) => {
           </p>
         )
         : <p>Loading assets...</p>}
-      <button onClick={() => setCount((p) => p - 1)} disabled={!IS_CLIENT}>
+      <button onClick={() => setCount((p) => p - 1)} disabled={disable}>
         - Decrement
       </button>
       <span style={{ margin: 20, fontSize: 20 }}>{count}</span>
-      <button onClick={() => setCount((p) => p + 1)} disabled={!IS_CLIENT}>
+      <button onClick={() => setCount((p) => p + 1)} disabled={disable}>
         Increment +
       </button>
     </div>
