@@ -80,22 +80,11 @@ const setHeader = (rev: RequestEvent) => {
     "public, max-age=31536000, immutable",
   );
 };
-const sleep = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 export class Redge extends NHttp {
   #entry: Record<string, TAny> = {};
   #cache = new Map();
   constructor(opts: TApp = {}) {
     super(opts);
-    const awaiter = (path: string) => {
-      return (async (t, d) => {
-        while (!this.#cache.has(path)) {
-          await sleep(t);
-          if (t === d) break;
-          t++;
-        }
-        return this.#cache.get(path);
-      })(0, 30);
-    };
     options.onRenderElement = (elem) => {
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
@@ -106,29 +95,23 @@ export class Redge extends NHttp {
         ...last,
       ];
       if (!isEmptyObj(this.#entry)) {
-        this.#bundle().then((res) => {
+        return this.#bundle().then((res) => {
           const files = res.outputFiles;
           files.forEach(({ path, contents }) => {
             path = toPathname(path);
             if (!this.#cache.has(path)) {
-              this.#cache.set(path, contents);
-              if (path.startsWith("/chunk-")) {
-                this.get(path, (rev) => {
-                  setHeader(rev);
-                  return contents;
-                });
-              }
+              this.#cache.set(path, true);
+              this.get(path, (rev) => {
+                setHeader(rev);
+                return contents;
+              });
             }
           });
+          this.#entry = {};
+          return body;
+        }).finally(() => {
+          if (!isDeploy) esbuild.stop();
         });
-        for (const k in this.#entry) {
-          const path = `/${k}.js`;
-          this.get(path, (rev) => {
-            setHeader(rev);
-            return this.#cache.get(path) ?? awaiter(path);
-          });
-        }
-        this.#entry = {};
       }
       return body;
     };
