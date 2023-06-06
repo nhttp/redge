@@ -167,6 +167,7 @@ export class Redge extends NHttp {
       client: "redge/client",
       react: "react",
     };
+    this.#entry = {};
     esbuild.build({
       ...config,
       entryPoints,
@@ -185,8 +186,7 @@ export class Redge extends NHttp {
           }
         }
       });
-      this.#entry = {};
-    }).finally(() => {
+    }).catch(console.error).finally(() => {
       if (!isDeploy) esbuild.stop();
     });
   };
