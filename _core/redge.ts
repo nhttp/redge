@@ -86,10 +86,12 @@ export class Redge extends NHttp {
   #entry: Record<string, TAny> = {};
   #cache: Record<string, Uint8Array | boolean> = {};
   #es = new Esbuild();
-  #awaiter = async (path: string) => {
+  #awaiter = async (path: string, ms: number) => {
+    await delay(ms);
+    if (Object.hasOwn(this.#cache, path)) return this.#cache[path];
     let i = 0;
     while (this.#cache[path] === void 0) {
-      await delay(1000);
+      await delay(ms);
       if (this.#cache[path] !== void 0 || i === 10) break;
       i++;
     }
@@ -213,8 +215,8 @@ export class Redge extends NHttp {
       this.get(path, async (rev) => {
         setHeader(rev);
         if (Object.hasOwn(this.#cache, path)) return this.#cache[path];
-        await delay(ms += 300);
-        const res = await this.#awaiter(path);
+        ms += 300;
+        const res = await this.#awaiter(path, ms);
         return res as TAny;
       });
     }
