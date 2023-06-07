@@ -86,7 +86,8 @@ export class Redge extends NHttp {
   #entry: Record<string, TAny> = {};
   #cache: Record<string, Uint8Array | boolean> = {};
   #es = new Esbuild();
-  #awaiter = async (path: string) => {
+  #awaiter = async (path: string, init?: number) => {
+    if (init) await delay(init);
     let i = 0;
     while (this.#cache[path] === void 0) {
       await delay(1000);
@@ -109,19 +110,15 @@ export class Redge extends NHttp {
           },
         }).pipeThrough(new TextEncoderStream());
       });
-      this.get(`/dev.${tt}.js`, (rev) => {
-        setHeader(rev);
-        return `let bool = false; new EventSource("/__REFRESH__").addEventListener("message", _ => {if (bool) location.reload();else bool = true;});`;
-      });
     }
     options.onRenderElement = (elem) => {
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
       const src = this.#getSource(elem);
       if (src.length) {
-        if (isDev) src.unshift(`<script src="/dev.${tt}.js"></script>`);
         const last = Helmet.writeBody?.() ?? [];
         Helmet.writeBody = () => [
+          `<script src="/redge.${tt}.js"></script>`,
           ...src,
           ...last,
         ];
@@ -181,19 +178,19 @@ export class Redge extends NHttp {
     }
     return src;
   };
-  #bundle = () => {
+  #bundle = async () => {
     const entryPoints = {
       ...this.#entry,
       client: "redge/client",
       react: "react",
     };
     this.#entry = {};
-    this.#es.esbuild.build({
-      ...this.#es.config,
-      entryPoints,
-      write: false,
-    }).then((res) => {
-      console.log("> build first");
+    try {
+      const res = await this.#es.esbuild.build({
+        ...this.#es.config,
+        entryPoints,
+        write: false,
+      });
       const files = res.outputFiles;
       files.forEach(({ path, contents }) => {
         path = toPathname(path);
@@ -208,20 +205,26 @@ export class Redge extends NHttp {
         }
       });
       if (!isDeploy) this.#es.esbuild.stop();
-    }).catch(console.error);
+    } catch (err) {
+      console.error(err);
+    }
   };
   #createAssets = () => {
+    let count = 500;
     for (const k in this.#entry) {
       const path = "/" + k + ".js";
-      this.get(path, async (rev) => {
+      this.get(path, (rev) => {
         setHeader(rev);
-        const ret = this.#cache[path];
-        if (ret) return ret;
-        await delay(1000);
-        return this.#cache[path] ?? this.#awaiter(path) as TAny;
+        return (this.#cache[path] ?? this.#awaiter(path, count += 300)) as TAny;
       });
     }
-    this.#bundle();
+    this.get(`/redge.${tt}.js`, async (rev) => {
+      if (!isEmptyObj(this.#entry)) await this.#bundle();
+      setHeader(rev);
+      return !isDev
+        ? `window.__BUILD_ID = ${tt}`
+        : `let bool = false; new EventSource("/__REFRESH__").addEventListener("message", _ => {if (bool) location.reload();else bool = true;});`;
+    });
   };
 }
 
