@@ -86,11 +86,10 @@ export class Redge extends NHttp {
   #entry: Record<string, TAny> = {};
   #cache: Record<string, Uint8Array | boolean> = {};
   #es = new Esbuild();
-  #awaiter = async (path: string, init?: number) => {
-    if (init) await delay(init);
+  #awaiter = async (path: string) => {
     let i = 0;
     while (this.#cache[path] === void 0) {
-      await delay(1000);
+      await delay(500);
       if (this.#cache[path] !== void 0 || i === 10) break;
       i++;
     }
@@ -210,12 +209,11 @@ export class Redge extends NHttp {
     }
   };
   #createAssets = () => {
-    let count = 500;
     for (const k in this.#entry) {
       const path = "/" + k + ".js";
       this.get(path, (rev) => {
         setHeader(rev);
-        return (this.#cache[path] ?? this.#awaiter(path, count += 300)) as TAny;
+        return (this.#cache[path] ?? this.#awaiter(path)) as TAny;
       });
     }
     this.get(`/redge.${tt}.js`, async (rev) => {
