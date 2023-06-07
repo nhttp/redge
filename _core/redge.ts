@@ -87,15 +87,15 @@ const delay = (t: number) => new Promise((ok) => setTimeout(ok, t));
 export class Redge extends NHttp {
   #entry: Record<string, TAny> = {};
   #cache = new Map();
-  #awaiter = (path: string) => {
-    return (async (t, d) => {
-      while (!this.#cache.has(path)) {
-        await delay(t);
-        if (t === d) break;
-        t++;
-      }
-      return this.#cache.get(path) ?? new Response(null, { status: 204 });
-    })(0, 100);
+  #awaiter = async (path: string) => {
+    await delay(1000);
+    let i = 0;
+    while (!this.#cache.has(path)) {
+      await delay(1000);
+      if (this.#cache.has(path) || i === 10) break;
+      i++;
+    }
+    return this.#cache.get(path) ?? new Response(null, { status: 204 });
   };
   constructor(opts: TApp = {}) {
     super(opts);
@@ -210,8 +210,13 @@ export class Redge extends NHttp {
             });
             if (!isDeploy) esbuild.stop();
             this.#entry = {};
-          } catch (error) {
-            throw error;
+          } catch {
+            for (const k in this.#entry) {
+              const path = "/" + k + ".js";
+              this.#cache.set(path, "to many reload !!");
+            }
+            setHeader(rev);
+            return "location.reload();";
           }
         }
         setHeader(rev);
