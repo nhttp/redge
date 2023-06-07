@@ -67,8 +67,6 @@ class Esbuild {
   }
 }
 
-await Esbuild.initWasm();
-
 function isEmptyObj(props: TAny) {
   if (!props) return false;
   for (const _ in props) return false;
@@ -86,10 +84,9 @@ const setHeader = (rev: RequestEvent) => {
 const delay = (t: number) => new Promise((ok) => setTimeout(ok, t));
 export class Redge extends NHttp {
   #entry: Record<string, TAny> = {};
-  #cache: Record<string, Uint8Array> = {};
+  #cache: Record<string, Uint8Array | boolean> = {};
   #es = new Esbuild();
   #awaiter = async (path: string) => {
-    await delay(1000);
     let i = 0;
     while (this.#cache[path] === void 0) {
       await delay(1000);
@@ -112,23 +109,42 @@ export class Redge extends NHttp {
           },
         }).pipeThrough(new TextEncoderStream());
       });
+      this.get(`/dev.${tt}.js`, (rev) => {
+        setHeader(rev);
+        return `let bool = false; new EventSource("/__REFRESH__").addEventListener("message", _ => {if (bool) location.reload();else bool = true;});`;
+      });
     }
     options.onRenderElement = (elem) => {
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
       const src = this.#getSource(elem);
       if (src.length) {
+        if (isDev) src.unshift(`<script src="/dev.${tt}.js"></script>`);
         const last = Helmet.writeBody?.() ?? [];
         Helmet.writeBody = () => [
-          `<script src="/redge.${tt}.js"></script>`,
           ...src,
           ...last,
         ];
-        this.#createAssets();
+        if (!isEmptyObj(this.#entry)) {
+          return (async () => {
+            const isReady = this.#cache["__IS_READY__"] ??
+              await this.#awaiter("__IS_READY__");
+            if (isReady === true) {
+              this.#createAssets();
+            }
+            return body;
+          })();
+        }
       }
       return body;
     };
     this.engine(renderToHtml);
+    const ori = this.listen.bind(this);
+    this.listen = async (...args) => {
+      await Esbuild.initWasm();
+      this.#cache["__IS_READY__"] = true;
+      return await ori(...args);
+    };
   }
   #findNode = (elem: JSX.Element) => {
     let arr = [] as TAny;
@@ -178,60 +194,38 @@ export class Redge extends NHttp {
       client: "redge/client",
       react: "react",
     };
-    return this.#es.esbuild.build({
+    this.#es.esbuild.build({
       ...this.#es.config,
       entryPoints,
       write: false,
-    });
-  };
-  #createAssets = () => {
-    // deno-lint-ignore no-this-alias
-    const self = this;
-    if (!isEmptyObj(self.#entry)) {
-      const awaiter = self.#awaiter.bind(this);
-      for (const k in self.#entry) {
-        const path = "/" + k + ".js";
-        self.get(path, async (rev) => {
-          setHeader(rev);
-          return self.#cache[path] ?? await awaiter(path);
-        });
-      }
-      self.get(`/redge.${tt}.js`, async (rev) => {
-        if (!isEmptyObj(self.#entry)) {
-          try {
-            console.log(self.#entry);
-            const res = await self.#bundle();
-            const files = res.outputFiles;
-            files.forEach(({ path, contents }) => {
-              path = toPathname(path);
-              if (self.#cache[path] === void 0) {
-                self.#cache[path] = contents;
-                self.get(path, (rev) => {
-                  setHeader(rev);
-                  return contents;
-                });
-              }
+    }).then((res) => {
+      const files = res.outputFiles;
+      files.forEach(({ path, contents }) => {
+        path = toPathname(path);
+        if (this.#cache[path] === void 0) {
+          if (path.includes("/chunk-")) {
+            this.get(path, (rev) => {
+              setHeader(rev);
+              return contents;
             });
-            if (!isDeploy) this.#es.esbuild.stop();
-            self.#entry = {};
-          } catch (err) {
-            console.error(err);
-            for (const k in self.#entry) {
-              const path = "/" + k + ".js";
-              self.#cache[path] = new Uint8Array(
-                new TextEncoder().encode("NOOP"),
-              );
-            }
-            setHeader(rev);
-            return "location.reload();";
+          } else {
+            this.#cache[path] = contents;
           }
         }
+      });
+      if (!isDeploy) this.#es.esbuild.stop();
+      this.#entry = {};
+    }).catch(console.error);
+  };
+  #createAssets = () => {
+    for (const k in this.#entry) {
+      const path = "/" + k + ".js";
+      this.get(path, async (rev) => {
         setHeader(rev);
-        return isDev
-          ? `let bool = false; new EventSource("/__REFRESH__").addEventListener("message", _ => {if (bool) location.reload();else bool = true;});`
-          : `window.__BUILD_ID__ = ${tt};`;
+        return this.#cache[path] ?? await this.#awaiter(path);
       });
     }
+    this.#bundle();
   };
 }
 
