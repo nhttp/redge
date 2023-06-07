@@ -5,6 +5,7 @@ import Helmet from "redge/helmet";
 import { options, renderToHtml } from "nhttp/render";
 import { renderToString } from "react-dom/server";
 import { NHttp, RequestEvent, Router, TApp } from "nhttp";
+import { tt } from "redge/client";
 
 export { Router };
 
@@ -25,7 +26,9 @@ export class Api extends Router {
 // deno-lint-ignore no-explicit-any
 type TAny = any;
 
-const isDeploy = !Deno.args.includes("--no-wasm");
+const args = Deno.args ?? [];
+const isDeploy = !args.includes("--no-wasm");
+const isDev = args.includes("--dev");
 class Esbuild {
   config: esbuildOri.BuildOptions = {
     absWorkingDir: Deno.cwd(),
@@ -80,39 +83,49 @@ const setHeader = (rev: RequestEvent) => {
     "public, max-age=31536000, immutable",
   );
 };
+const delay = (t: number) => new Promise((ok) => setTimeout(ok, t));
 export class Redge extends NHttp {
   #entry: Record<string, TAny> = {};
   #cache = new Map();
+  #awaiter = (path: string) => {
+    return (async (t, d) => {
+      while (!this.#cache.has(path)) {
+        await delay(t);
+        if (t === d) break;
+        t++;
+      }
+      return this.#cache.get(path);
+    })(0, 100);
+  };
   constructor(opts: TApp = {}) {
     super(opts);
+    if (isDev) {
+      this.get("/__REFRESH__", ({ response }) => {
+        response.type("text/event-stream");
+        return new ReadableStream({
+          start(controller) {
+            controller.enqueue(`data: reload\nretry: 100\n\n`);
+          },
+          cancel(err) {
+            console.log(err || "Error ReadableStream");
+          },
+        }).pipeThrough(new TextEncoderStream());
+      });
+    }
     options.onRenderElement = (elem) => {
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
       const src = this.#getSource(elem);
-      const last = Helmet.writeBody?.() ?? [];
-      Helmet.writeBody = () => [
-        ...src,
-        ...last,
-      ];
-      if (!isEmptyObj(this.#entry)) {
-        return this.#bundle().then((res) => {
-          const files = res.outputFiles;
-          files.forEach(({ path, contents }) => {
-            path = toPathname(path);
-            if (!this.#cache.has(path)) {
-              this.#cache.set(path, true);
-              this.get(path, (rev) => {
-                setHeader(rev);
-                return contents;
-              });
-            }
-          });
-          this.#entry = {};
-          return body;
-        }).finally(() => {
-          if (!isDeploy) esbuild.stop();
-        });
+      if (src.length) {
+        const last = Helmet.writeBody?.() ?? [];
+        Helmet.writeBody = () => [
+          `<script src="/redge.${tt}.js"></script>`,
+          ...src,
+          ...last,
+        ];
+        this.#createAssets();
       }
+
       return body;
     };
     this.engine(renderToHtml);
@@ -165,11 +178,47 @@ export class Redge extends NHttp {
       client: "redge/client",
       react: "react",
     };
+    this.#entry = {};
     return esbuild.build({
       ...config,
       entryPoints,
       write: false,
     });
+  };
+  #createAssets = () => {
+    if (!isEmptyObj(this.#entry)) {
+      const awaiter = this.#awaiter.bind(this);
+      for (const k in this.#entry) {
+        const path = "/" + k + ".js";
+        this.get(path, (rev) => {
+          setHeader(rev);
+          return this.#cache.get(path) ?? awaiter(path);
+        });
+      }
+      this.get(`/redge.${tt}.js`, async (rev) => {
+        if (!isEmptyObj(this.#entry)) {
+          const res = await this.#bundle();
+          const files = res.outputFiles;
+          files.forEach(({ path, contents }) => {
+            path = toPathname(path);
+            if (!this.#cache.has(path)) {
+              this.#cache.set(path, contents);
+              if (path.includes("/chunk-")) {
+                this.get(path, (rev) => {
+                  setHeader(rev);
+                  return contents;
+                });
+              }
+            }
+          });
+          if (!isDeploy) esbuild.stop();
+        }
+        setHeader(rev);
+        return isDev
+          ? `let bool = false; new EventSource("/__REFRESH__").addEventListener("message", _ => {if (bool) location.reload();else bool = true;});`
+          : `window.__BUILD_ID__ = ${tt};`;
+      });
+    }
   };
 }
 

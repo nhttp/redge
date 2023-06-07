@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "dev": "deno run -A --watch main.ts --no-wasm",
+    "dev": "deno run -A --watch main.ts --no-wasm --dev",
     "start": "deno run -A main.ts --no-wasm"
   },
   "importMap": "./_core/import_map.json",

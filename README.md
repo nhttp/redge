@@ -2,6 +2,8 @@
 
 A minimal React JIT-Rendering on the edge.
 
+> [WIP] DON`T USE IT !!
+
 Demo => https://redge.deno.dev/
 
 ## Features
@@ -9,6 +11,7 @@ Demo => https://redge.deno.dev/
 - JIT Rendering.
 - Partial Hydration (hydrate your components only when you need).
 - No build step.
+- Hot Reloading.
 
 ## Usage
 

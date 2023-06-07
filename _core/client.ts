@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 // deno-lint-ignore no-explicit-any
 type TAny = any;
 export const IS_CLIENT = typeof document !== "undefined";
-const tt = Date.now();
+export const tt = Date.now();
 type FunctionComp<T> = FC<T>;
 
 export function hydrate<T>(
