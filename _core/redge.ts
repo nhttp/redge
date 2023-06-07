@@ -125,15 +125,8 @@ export class Redge extends NHttp {
           ...src,
           ...last,
         ];
-        if (!isEmptyObj(this.#entry)) {
-          return (async () => {
-            const isReady = this.#cache["__IS_READY__"] ??
-              await this.#awaiter("__IS_READY__");
-            if (isReady === true) {
-              this.#createAssets();
-            }
-            return body;
-          })();
+        if (!isEmptyObj(this.#entry) && this.#cache["__IS_READY__"]) {
+          this.#createAssets();
         }
       }
       return body;
@@ -194,11 +187,13 @@ export class Redge extends NHttp {
       client: "redge/client",
       react: "react",
     };
+    this.#entry = {};
     this.#es.esbuild.build({
       ...this.#es.config,
       entryPoints,
       write: false,
     }).then((res) => {
+      console.log("> build first");
       const files = res.outputFiles;
       files.forEach(({ path, contents }) => {
         path = toPathname(path);
@@ -208,24 +203,25 @@ export class Redge extends NHttp {
               setHeader(rev);
               return contents;
             });
-          } else {
-            this.#cache[path] = contents;
           }
+          this.#cache[path] = contents;
         }
       });
       if (!isDeploy) this.#es.esbuild.stop();
-      this.#entry = {};
     }).catch(console.error);
   };
   #createAssets = () => {
+    this.#bundle();
     for (const k in this.#entry) {
       const path = "/" + k + ".js";
       this.get(path, async (rev) => {
         setHeader(rev);
-        return this.#cache[path] ?? await this.#awaiter(path);
+        const ret = this.#cache[path];
+        if (ret) return ret;
+        await delay(1000);
+        return this.#cache[path] ?? this.#awaiter(path) as TAny;
       });
     }
-    this.#bundle();
   };
 }
 
