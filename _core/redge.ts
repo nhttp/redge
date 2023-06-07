@@ -211,7 +211,6 @@ export class Redge extends NHttp {
     }).catch(console.error);
   };
   #createAssets = () => {
-    this.#bundle();
     for (const k in this.#entry) {
       const path = "/" + k + ".js";
       this.get(path, async (rev) => {
@@ -222,6 +221,7 @@ export class Redge extends NHttp {
         return this.#cache[path] ?? this.#awaiter(path) as TAny;
       });
     }
+    this.#bundle();
   };
 }
 
