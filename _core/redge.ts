@@ -89,7 +89,7 @@ export class Redge extends NHttp {
   #awaiter = async (path: string) => {
     let i = 0;
     while (this.#cache[path] === void 0) {
-      await delay(500);
+      await delay(1000);
       if (this.#cache[path] !== void 0 || i === 10) break;
       i++;
     }
@@ -194,12 +194,10 @@ export class Redge extends NHttp {
       files.forEach(({ path, contents }) => {
         path = toPathname(path);
         if (this.#cache[path] === void 0) {
-          if (path.includes("/chunk-")) {
-            this.get(path, (rev) => {
-              setHeader(rev);
-              return contents;
-            });
-          }
+          this.get(path, (rev) => {
+            setHeader(rev);
+            return contents;
+          });
           this.#cache[path] = contents;
         }
       });
@@ -209,11 +207,15 @@ export class Redge extends NHttp {
     }
   };
   #createAssets = () => {
+    let ms = 700;
     for (const k in this.#entry) {
       const path = "/" + k + ".js";
-      this.get(path, (rev) => {
+      this.get(path, async (rev) => {
         setHeader(rev);
-        return (this.#cache[path] ?? this.#awaiter(path)) as TAny;
+        if (Object.hasOwn(this.#cache, path)) return this.#cache[path];
+        await delay(ms += 300);
+        const res = await this.#awaiter(path);
+        return res as TAny;
       });
     }
     this.get(`/redge.${tt}.js`, async (rev) => {
