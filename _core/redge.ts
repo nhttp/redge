@@ -95,7 +95,7 @@ export class Redge extends NHttp {
         t++;
       }
       return this.#cache.get(path) ?? new Response(null, { status: 204 });
-    })(0, 50);
+    })(0, 100);
   };
   constructor(opts: TApp = {}) {
     super(opts);
@@ -125,7 +125,6 @@ export class Redge extends NHttp {
         ];
         this.#createAssets();
       }
-
       return body;
     };
     this.engine(renderToHtml);
@@ -189,9 +188,9 @@ export class Redge extends NHttp {
       const awaiter = this.#awaiter.bind(this);
       for (const k in this.#entry) {
         const path = "/" + k + ".js";
-        this.get(path, (rev) => {
+        this.get(path, async (rev) => {
           setHeader(rev);
-          return this.#cache.get(path) ?? awaiter(path);
+          return this.#cache.get(path) ?? await awaiter(path);
         });
       }
       this.get(`/redge.${tt}.js`, async (rev) => {
