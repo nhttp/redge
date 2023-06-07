@@ -94,8 +94,8 @@ export class Redge extends NHttp {
         if (t === d) break;
         t++;
       }
-      return this.#cache.get(path);
-    })(0, 100);
+      return this.#cache.get(path) ?? new Response(null, { status: 204 });
+    })(0, 50);
   };
   constructor(opts: TApp = {}) {
     super(opts);
@@ -178,7 +178,6 @@ export class Redge extends NHttp {
       client: "redge/client",
       react: "react",
     };
-    this.#entry = {};
     return esbuild.build({
       ...config,
       entryPoints,
@@ -197,21 +196,24 @@ export class Redge extends NHttp {
       }
       this.get(`/redge.${tt}.js`, async (rev) => {
         if (!isEmptyObj(this.#entry)) {
-          const res = await this.#bundle();
-          const files = res.outputFiles;
-          files.forEach(({ path, contents }) => {
-            path = toPathname(path);
-            if (!this.#cache.has(path)) {
-              this.#cache.set(path, contents);
-              if (path.includes("/chunk-")) {
+          try {
+            const res = await this.#bundle();
+            const files = res.outputFiles;
+            files.forEach(({ path, contents }) => {
+              path = toPathname(path);
+              if (!this.#cache.has(path)) {
+                this.#cache.set(path, contents);
                 this.get(path, (rev) => {
                   setHeader(rev);
                   return contents;
                 });
               }
-            }
-          });
-          if (!isDeploy) esbuild.stop();
+            });
+            if (!isDeploy) esbuild.stop();
+            this.#entry = {};
+          } catch (error) {
+            throw error;
+          }
         }
         setHeader(rev);
         return isDev
