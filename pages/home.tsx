@@ -13,6 +13,7 @@ export default GET("/", (rev) => {
           name="description"
           content="This example page for React JIT-render"
         />
+        <link rel="stylesheet" href="/assets/style.css" />
       </Helmet>
       <div style={{ textAlign: "center" }}>
         <Title />

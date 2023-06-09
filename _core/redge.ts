@@ -3,6 +3,7 @@ import * as esbuildWasm from "https://deno.land/x/esbuild@v0.17.19/wasm.js";
 import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.7.0/mod.ts";
 import Helmet from "redge/helmet";
 import { options, renderToHtml } from "nhttp/render";
+import serveStatic from "nhttp/serve-static";
 import { renderToString } from "react-dom/server";
 import { NHttp, RequestEvent, Router, TApp } from "nhttp";
 import { tt } from "redge/client";
@@ -81,24 +82,15 @@ const setHeader = (rev: RequestEvent) => {
     "public, max-age=31536000, immutable",
   );
 };
-const delay = (t: number) => new Promise((ok) => setTimeout(ok, t));
 export class Redge extends NHttp {
   #entry: Record<string, TAny> = {};
-  #cache: Record<string, Uint8Array | boolean> = {};
+  #src: Record<string, TAny> = {};
+  #stat: Record<string, TAny> = {};
+  #cache: Record<string, Uint8Array> = {};
   #es = new Esbuild();
-  #awaiter = async (path: string, ms: number) => {
-    await delay(ms);
-    if (Object.hasOwn(this.#cache, path)) return this.#cache[path];
-    let i = 0;
-    while (this.#cache[path] === void 0) {
-      await delay(ms);
-      if (this.#cache[path] !== void 0 || i === 10) break;
-      i++;
-    }
-    return this.#cache[path] ?? new Response(null, { status: 204 });
-  };
   constructor(opts: TApp = {}) {
     super(opts);
+    this.use("/assets", serveStatic("public"));
     if (isDev) {
       this.get("/__REFRESH__", ({ response }) => {
         response.type("text/event-stream");
@@ -111,20 +103,29 @@ export class Redge extends NHttp {
           },
         }).pipeThrough(new TextEncoderStream());
       });
+      this.get(`/dev.${tt}.js`, (rev) => {
+        setHeader(rev);
+        return `(() => {let bool = false; new EventSource("/__REFRESH__").addEventListener("message", _ => {if (bool) location.reload(); else bool = true;});})();`;
+      });
     }
-    options.onRenderElement = (elem) => {
+    options.onRenderElement = (elem, rev) => {
+      const route_path = rev.path;
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
-      const src = this.#getSource(elem);
+      let src = this.#src[route_path] ??= this.#getSource(elem);
       if (src.length) {
         const last = Helmet.writeBody?.() ?? [];
+        if (isDev) src = [`<script src="/dev.${tt}.js"></script>`].concat(src);
         Helmet.writeBody = () => [
-          `<script src="/redge.${tt}.js"></script>`,
           ...src,
           ...last,
         ];
-        if (!isEmptyObj(this.#entry) && this.#cache["__IS_READY__"]) {
-          this.#createAssets();
+        if (this.#stat[route_path] === void 0) {
+          return (async () => {
+            await this.#bundle();
+            this.#stat[route_path] = 1;
+            return body;
+          })();
         }
       }
       return body;
@@ -133,7 +134,6 @@ export class Redge extends NHttp {
     const ori = this.listen.bind(this);
     this.listen = async (...args) => {
       await Esbuild.initWasm();
-      this.#cache["__IS_READY__"] = true;
       return await ori(...args);
     };
   }
@@ -185,7 +185,6 @@ export class Redge extends NHttp {
       client: "redge/client",
       react: "react",
     };
-    this.#entry = {};
     try {
       const res = await this.#es.esbuild.build({
         ...this.#es.config,
@@ -207,26 +206,6 @@ export class Redge extends NHttp {
     } catch (err) {
       console.error(err);
     }
-  };
-  #createAssets = () => {
-    let ms = 700;
-    for (const k in this.#entry) {
-      const path = "/" + k + ".js";
-      this.get(path, async (rev) => {
-        setHeader(rev);
-        if (Object.hasOwn(this.#cache, path)) return this.#cache[path];
-        ms += 300;
-        const res = await this.#awaiter(path, ms);
-        return res as TAny;
-      });
-    }
-    this.get(`/redge.${tt}.js`, async (rev) => {
-      if (!isEmptyObj(this.#entry)) await this.#bundle();
-      setHeader(rev);
-      return !isDev
-        ? `window.__BUILD_ID = ${tt}`
-        : `let bool = false; new EventSource("/__REFRESH__").addEventListener("message", _ => {if (bool) location.reload();else bool = true;});`;
-    });
   };
 }
 
