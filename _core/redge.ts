@@ -67,7 +67,7 @@ class Esbuild {
     return isDeploy ? esbuildWasm : esbuildOri;
   }
 }
-
+await Esbuild.initWasm();
 function isEmptyObj(props: TAny) {
   if (!props) return false;
   for (const _ in props) return false;
@@ -131,11 +131,6 @@ export class Redge extends NHttp {
       return body;
     };
     this.engine(renderToHtml);
-    const ori = this.listen.bind(this);
-    this.listen = async (...args) => {
-      await Esbuild.initWasm();
-      return await ori(...args);
-    };
   }
   #findNode = (elem: JSX.Element) => {
     let arr = [] as TAny;
