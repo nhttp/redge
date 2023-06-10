@@ -1,6 +1,6 @@
 # Redge
 
-A minimal React partial-hydrations.
+A minimal React partial-hydrations on the edge.
 
 hydrate your components only when you need.
 
