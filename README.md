@@ -1,6 +1,8 @@
 # Redge
 
-A minimal React JIT-Rendering on the edge.
+A minimal React partials-hydrations.
+
+hydrate your components only when you need.
 
 > [WIP] DON`T USE IT !!
 
@@ -8,9 +10,9 @@ Demo => https://redge.deno.dev/
 
 ## Features
 
-- JIT Rendering.
-- Partial Hydration (hydrate your components only when you need).
-- No build step.
+- Partials Hydrations.
+- Optional JIT Rendering.
+- Optional build step.
 - Hot Reloading.
 
 ## Usage
@@ -20,7 +22,14 @@ git clone https://github.com/nhttp/redge.git my_app
 
 cd my_app
 
+// run dev
 deno task dev
+
+// build-step (optionals)
+deno task build
+
+// run prod 
+deno task start
 ```
 
 ## Deploy to Deno Deploy

@@ -1,7 +1,8 @@
 {
   "tasks": {
     "dev": "deno run -A --watch main.ts --no-wasm --dev",
-    "start": "deno run -A main.ts --no-wasm"
+    "start": "deno run -A main.ts --no-wasm",
+    "build": "deno run -A ./_core/build.ts --no-wasm"
   },
   "importMap": "./_core/import_map.json",
   "compilerOptions": {
@@ -11,5 +12,9 @@
       "deno.window",
       "dom"
     ]
-  }
+  },
+  "fmt": {
+    "exclude": ["build"]
+  },
+  "lint": { "exclude": ["build"] }
 }

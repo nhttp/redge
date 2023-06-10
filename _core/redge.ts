@@ -6,7 +6,9 @@ import { options, renderToHtml } from "nhttp/render";
 import serveStatic from "nhttp/serve-static";
 import { renderToString } from "react-dom/server";
 import { NHttp, RequestEvent, Router, TApp } from "nhttp";
-import { tt } from "redge/client";
+import { tt as timestamps } from "redge/client";
+
+let tt = timestamps;
 
 export { Router };
 
@@ -28,15 +30,24 @@ export class Api extends Router {
 type TAny = any;
 
 const args = Deno.args ?? [];
-const isDeploy = !args.includes("--no-wasm");
+
 const isDev = args.includes("--dev");
-class Esbuild {
+let isBuild = false;
+if (isDev === false) {
+  try {
+    isBuild = Deno.statSync("build").isDirectory;
+    tt = parseInt(Deno.readTextFileSync("build/build_id.txt"));
+  } catch { /* noop */ }
+}
+const isDeploy = isBuild === false && args.includes("--no-wasm") === false;
+export class Esbuild {
   config: esbuildOri.BuildOptions = {
     absWorkingDir: Deno.cwd(),
     format: "esm",
     bundle: true,
     platform: "neutral",
     treeShaking: true,
+    entryPoints: { client: "redge/client", react: "react" },
     target: [
       "es2020",
       "chrome64",
@@ -68,7 +79,7 @@ class Esbuild {
   }
 }
 await Esbuild.initWasm();
-function isEmptyObj(props: TAny) {
+export function isEmptyObj(props: TAny) {
   if (!props) return false;
   for (const _ in props) return false;
   return true;
@@ -83,14 +94,17 @@ const setHeader = (rev: RequestEvent) => {
   );
 };
 export class Redge extends NHttp {
-  #entry: Record<string, TAny> = {};
-  #src: Record<string, TAny> = {};
-  #stat: Record<string, TAny> = {};
-  #cache: Record<string, Uint8Array> = {};
+  #cache: Record<string, {
+    entry: Record<string, string>;
+    src: string[];
+    route: Record<string, boolean>;
+    stat?: number;
+  }> = {};
   #es = new Esbuild();
   constructor(opts: TApp = {}) {
     super(opts);
     this.use("/assets", serveStatic("public"));
+    if (isBuild) this.use("/app", serveStatic("build"));
     if (isDev) {
       this.get("/__REFRESH__", ({ response }) => {
         response.type("text/event-stream");
@@ -109,23 +123,30 @@ export class Redge extends NHttp {
       });
     }
     options.onRenderElement = (elem, rev) => {
-      const route_path = rev.path;
+      const key = rev.method + rev.route.path.toString();
       Helmet.render = renderToString;
       const body = Helmet.render(elem);
-      let src = this.#src[route_path] ??= this.#getSource(elem);
+      let src = this.#cache[key]?.src;
+      if (src === void 0) {
+        this.#cache[key] = {
+          entry: {},
+          src: [],
+          route: {},
+        };
+        src = this.#cache[key].src = this.#getSource(
+          elem,
+          key,
+        ) as string[];
+      }
       if (src.length) {
         const last = Helmet.writeBody?.() ?? [];
         if (isDev) src = [`<script src="/dev.${tt}.js"></script>`].concat(src);
         Helmet.writeBody = () => [
-          ...src,
+          ...src as string[],
           ...last,
         ];
-        if (this.#stat[route_path] === void 0) {
-          return (async () => {
-            await this.#bundle();
-            this.#stat[route_path] = 1;
-            return body;
-          })();
+        if (this.#cache[key].stat === undefined && isBuild === false) {
+          return this.#bundle(key).then(() => body);
         }
       }
       return body;
@@ -146,7 +167,7 @@ export class Redge extends NHttp {
     }
     return arr;
   };
-  #getSource = (elem: JSX.Element) => {
+  #getSource = (elem: JSX.Element, key: string) => {
     const fn = elem.type as TAny;
     const main = fn?.meta_url;
     let src: TAny[] = [];
@@ -160,44 +181,40 @@ export class Redge extends NHttp {
           }</script>`,
         );
       }
-      const path = `${fn.path}.js`;
-      src.push(`<script type="module" src="${path}" async></script>`);
-      if (this.#cache[path] === void 0) {
-        const key = fn.path.substring(1);
-        this.#entry[key] = fn.meta_url;
+      const name = `${fn.hash}.${tt}`;
+      const path = `/${name}.js`;
+      src.push(`<script type="module" src="/app${path}" async></script>`);
+      if (this.#cache[key].route[path] === void 0) {
+        this.#cache[key].entry[name] = fn.meta_url;
       }
     } else {
       const arr: JSX.Element[] = this.#findNode(elem);
       arr.forEach((elem) => {
-        src = src.concat(this.#getSource(elem));
+        src = src.concat(this.#getSource(elem, key));
       });
     }
     return src;
   };
-  #bundle = async () => {
-    const entryPoints = {
-      ...this.#entry,
-      client: "redge/client",
-      react: "react",
-    };
+  #bundle = async (key: string) => {
+    Object.assign(this.#es.config.entryPoints as TAny, this.#cache[key].entry);
     try {
       const res = await this.#es.esbuild.build({
         ...this.#es.config,
-        entryPoints,
         write: false,
       });
       const files = res.outputFiles;
       files.forEach(({ path, contents }) => {
         path = toPathname(path);
-        if (this.#cache[path] === void 0) {
-          this.get(path, (rev) => {
+        if (this.#cache[key].route[path] === void 0) {
+          this.get("/app" + path, (rev) => {
             setHeader(rev);
             return contents;
           });
-          this.#cache[path] = contents;
+          this.#cache[key].route[path] = true;
         }
       });
       if (!isDeploy) this.#es.esbuild.stop();
+      this.#cache[key].stat = 1;
     } catch (err) {
       console.error(err);
     }
