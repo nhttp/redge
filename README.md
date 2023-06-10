@@ -1,6 +1,6 @@
 # Redge
 
-A minimal React partials-hydrations.
+A minimal React partial-hydrations.
 
 hydrate your components only when you need.
 
@@ -10,7 +10,7 @@ Demo => https://redge.deno.dev/
 
 ## Features
 
-- Partials Hydrations.
+- Partial Hydration.
 - Optional JIT Rendering.
 - Optional build step.
 - Hot Reloading.
