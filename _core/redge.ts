@@ -104,7 +104,20 @@ export class Redge extends NHttp {
   constructor(opts: TApp = {}) {
     super(opts);
     this.use("/assets", serveStatic("public"));
-    if (isBuild) this.use("/app", serveStatic("build"));
+    if (isBuild) {
+      this.use(
+        "/app",
+        serveStatic("build", {
+          etag: false,
+          setHeaders(rev) {
+            rev.response.setHeader(
+              "cache-control",
+              "public, max-age=31536000, immutable",
+            );
+          },
+        }),
+      );
+    }
     if (isDev) {
       this.get("/__REFRESH__", ({ response }) => {
         response.type("text/event-stream");
