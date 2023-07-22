@@ -152,9 +152,9 @@ export class Redge extends NHttp {
         ) as string[];
       }
       if (src.length) {
-        const last = Helmet.writeBody?.() ?? [];
+        const last = Helmet.writeFooterTag?.() ?? [];
         if (isDev) src = [`<script src="/dev.${tt}.js"></script>`].concat(src);
-        Helmet.writeBody = () => [
+        Helmet.writeFooterTag = () => [
           ...src as string[],
           ...last,
         ];
